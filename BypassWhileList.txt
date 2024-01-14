@@ -1,0 +1,95 @@
+package site;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemFactory;
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
+
+public class FileUploadServlet extends HttpServlet {
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        boolean isMultipart = ServletFileUpload.isMultipartContent(request);
+
+        if (isMultipart) {
+            FileItemFactory factory = new DiskFileItemFactory();
+            ServletFileUpload upload = new ServletFileUpload(factory);
+
+            try {
+                List items = upload.parseRequest(request);
+                Iterator iterator = items.iterator();
+                while (iterator.hasNext()) {
+                    FileItem item = (FileItem) iterator.next();
+                    if (!item.isFormField()) {
+                        String fileName = new File(item.getName()).getName();
+
+                        // Tạo thư mục tạm trước khi kiểm tra đuôi file
+                        String tempDirectory = getServletContext().getRealPath("/") + File.separator + "temp";
+                        File tempDir = new File(tempDirectory);
+                        if (!tempDir.exists()) {
+                            tempDir.mkdirs();
+                        }
+
+                        File tempFile = new File(tempDir, fileName);
+                        item.write(tempFile);
+
+                        // Kiểm tra đuôi file
+                        if (fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".png")) {
+                            // Tiếp tục xử lý và chuyển file vào thư mục uploads
+                            String root = getServletContext().getRealPath("/");
+                            File uploadPath = new File(root + File.separator + "uploads");
+                            if (!uploadPath.exists()) {
+                                boolean status = uploadPath.mkdirs();
+                            }
+
+                            File uploadedFile = new File(uploadPath + File.separator + fileName);
+                            tempFile.renameTo(uploadedFile);
+                            System.out.println("File uploaded. Path=" + uploadedFile.getAbsolutePath());
+
+                            // Xóa file tạm
+                            tempFile.delete();
+
+                            // Rest of the code remains unchanged
+                            response.getWriter().println("<html><body>");
+                            response.getWriter().println("<h2>File uploaded successfully</h2>");
+                            response.getWriter().println("<img src=\"uploads/" + fileName + "\" alt=\"Uploaded Image\"><br/>");
+                            response.getWriter().println("<p>Access the file here: <a href=\"uploads/" + fileName + "\" target=\"_blank\">" + fileName + "</a></p>");
+                            response.getWriter().println("<p><a href=\"" + request.getContextPath() + "\">Upload another file</a></p>");
+                            response.getWriter().println("</body></html>");
+                            response.getWriter().flush();
+                        } else {
+                            // File không đúng định dạng, xóa file tạm và thông báo lỗi
+                            tempFile.delete();
+
+                            response.getWriter().println("<html><body>");
+                            response.getWriter().println("<h2>File upload failed</h2>");
+                            response.getWriter().println("<p>Only .jpg and .png files are allowed.</p>");
+                            response.getWriter().println("<p><a href=\"" + request.getContextPath() + "\">Upload another file</a></p>");
+                            response.getWriter().println("</body></html>");
+                            response.getWriter().flush();
+                        }
+                    }
+                }
+            } catch (FileUploadException e) {
+                e.printStackTrace();
+                response.sendRedirect(request.getContextPath());
+            } catch (Exception e) {
+                e.printStackTrace();
+                response.sendRedirect(request.getContextPath());
+            }
+        } else {
+            response.sendRedirect(request.getContextPath());
+        }
+    }
+}
